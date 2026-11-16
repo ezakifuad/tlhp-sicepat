@@ -1,0 +1,11 @@
+.git
+.github
+.env*
+**/.DS_Store
+uploads
+backups
+tlhp_db.sql
+docs
+*.zip
+*.rar
+*.md

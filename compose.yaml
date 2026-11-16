@@ -1,0 +1,48 @@
+name: sicapat
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${APP_PORT:-8088}:80"
+    environment:
+      DB_HOST: db
+      DB_DATABASE: ${DB_DATABASE:-tlhp_db}
+      DB_USERNAME: ${DB_USERNAME:-sicapat}
+      DB_PASSWORD: ${DB_PASSWORD:?Isi DB_PASSWORD di .env}
+      APP_UPLOAD_DIR: /var/lib/sicapat/uploads
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-0}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - attachments:/var/lib/sicapat/uploads
+    healthcheck:
+      test: ["CMD", "php", "/opt/sicapat/check-db.php"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  db:
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_DATABASE:-tlhp_db}
+      MARIADB_USER: ${DB_USERNAME:-sicapat}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?Isi DB_PASSWORD di .env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Isi DB_ROOT_PASSWORD di .env}
+    volumes:
+      - database:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  database:
+  attachments:

@@ -1,0 +1,35 @@
+name: Verify SI-CAPAT container
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    env:
+      DB_PASSWORD: ci-disposable-app-password
+      DB_ROOT_PASSWORD: ci-disposable-root-password
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start SI-CAPAT
+        run: docker compose up -d --build --wait --wait-timeout 180
+      - name: Verify application and protected entry points
+        run: |
+          docker compose exec -T app sh -c 'find /var/www/html /opt/sicapat -name "*.php" -exec php -l {} \;'
+          docker compose exec -T --user www-data app test -w /var/lib/sicapat/uploads/lhp_2026
+          base=http://127.0.0.1:8088
+          curl -fsS "$base/index.php" -o /tmp/sicapat-login.html
+          grep -q 'name="csrf_token"' /tmp/sicapat-login.html
+          for path in action_akun.php action_lhp_2026.php export_lhp_2026_excel.php; do
+            test "$(curl -sS -o /dev/null -w '%{http_code}' "$base/$path")" = 401
+          done
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Clean up disposable containers and volumes
+        if: always()
+        run: docker compose down -v
